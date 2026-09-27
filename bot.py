@@ -2,39 +2,39 @@ import os
 import asyncio
 from datetime import datetime, timezone
 
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telethon import TelegramClient, functions
+from telethon.sessions import StringSession
+from telethon.errors import FloodWaitError
+
+API_ID = int(os.environ["API_ID"])
+API_HASH = os.environ["API_HASH"]
+SESSION_STRING = os.environ["SESSION_STRING"]
 
 
-def get_time_text():
-    now = datetime.now(timezone.utc)
-    return f"🕐 ساعت جهانی: {now.strftime('%H:%M')}"
+async def main():
+    client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+    await client.start()
 
-
-async def clock(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = await update.message.reply_text(get_time_text())
+    me = await client.get_me()
+    print(f"Logged in as: {me.first_name}")
 
     while True:
-        await asyncio.sleep(60)
+        clock = datetime.now(timezone.utc).strftime("%H:%M")
+
         try:
-            await message.edit_text(get_time_text())
-        except Exception:
-            break
+            await client(functions.account.UpdateProfileRequest(
+                last_name=f"🕐 {clock}"
+            ))
+            print(f"Updated: {clock} UTC")
+        except FloodWaitError as e:
+            print(f"Telegram rate limit: waiting {e.seconds} seconds")
+            await asyncio.sleep(e.seconds)
+            continue
+        except Exception as e:
+            print(f"Update error: {e}")
 
-
-def main():
-    token = os.getenv("BOT_TOKEN")
-
-    if not token:
-        raise RuntimeError("BOT_TOKEN در Variables ریل‌وی تنظیم نشده است.")
-
-    app = Application.builder().token(token).build()
-    app.add_handler(CommandHandler("clock", clock))
-    app.add_handler(CommandHandler("saat", clock))
-
-    print("Bot started...")
-    app.run_polling()
+        await asyncio.sleep(60)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
